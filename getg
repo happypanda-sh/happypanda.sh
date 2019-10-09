@@ -107,14 +107,14 @@ log 4 "Max parallel level: $PARALLEL."
 if [ "$TOTAL_PAGES" -le 6 ]; then
     # Directly get image list from PAGE1~6
     IMAGE_LIST=$(echo "$PAGE6" | \
-        grep -Eio "/s/[0-9a-f]+/$ID-[0-9]+" | \
+        xmlext '//div[@class="gdtm"]/div/a/@href' |
         sed 's@^@https://exhentai.org@' | \
         sort -u -t- -nk2
     )
 else
     IMAGE_LIST=$(seq 0 $((TOTAL_PAGES - 1)) | \
         xargs -n1 -P$PARALLEL -I:: curl_proxy "$URL"?p=:: | \
-        grep -Eio "/s/[0-9a-f]+/$ID-[0-9]+" | \
+        xmlext '//div[@class="gdtm"]/div/a/@href' |
         sed 's@^@https://exhentai.org@' | \
         sort -u -t- -nk2
     )
@@ -129,7 +129,7 @@ fi
 
 ACTUAL_IMAGES=$(echo "$IMAGE_LIST" | wc -l)
 
-echo "$IMAGE_LIST" > $SCRIPT_PATH/image2.lst
+#echo "$IMAGE_LIST" > $SCRIPT_PATH/image.lst
 
 if [ "$ACTUAL_IMAGES" -ne "$TOTAL_IMAGES" ]; then
     log 2 "Missing $((TOTAL_IMAGES - ACTUAL_IMAGES)) images, abort."
