@@ -1,0 +1,14 @@
+
+# General arguments
+PROXY_LIST=$SCRIPT_PATH/proxy.lst
+USABLE_PROXY_LIST=$SCRIPT_PATH/usable_proxy.lst
+COOKIE_JAR=$SCRIPT_PATH/eh.txt
+JOB_QUEUE=$SCRIPT_PATH/job_queue.pipe
+DOWNLOAD_DIR=$SCRIPT_PATH/download
+
+# Retry time
+RETRY_GETG=10
+RETRY_GETS=10
+
+# Log verbosity
+LOG_VERBOSITY=${LOG_VERBOSITY:-5}

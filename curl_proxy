@@ -1,0 +1,51 @@
+#!/bin/bash
+
+export SCRIPT_PATH=$(cd "$(dirname "$0")" && pwd)
+export PATH=$PATH:$SCRIPT_PATH
+
+
+RETRY=${RETRY:-0}
+
+FUNC_SCRIPT=1
+. func
+
+sleep_time=0.25
+
+exp_backoff() {
+    sleep $sleep_time
+    sleep_time=$(echo "$sleep_time" | awk '{print $1*2}')
+    #if [ "$sleep_time" -gt 10 ]; then
+    #    sleep_time=10
+    #fi
+}
+
+if [ "$#" -lt 1 ]; then
+    echo "$0 [curl arguments] <url>"
+    exit -1
+fi
+
+log 7 "$0 $@"
+
+for ((i=0; i<=$RETRY; i++)); do
+    if [ ! -s "$USABLE_PROXY_LIST" ]; then
+        log 3 "No proxy could be used, sleep ${sleep_time}s and retry..."
+        exp_backoff
+        continue
+    fi
+
+    PROXY="$(grep -v "^$" "$USABLE_PROXY_LIST" | grep -v "^#" | shuf | head -n1 | cut -d' ' -f1)"
+    log 7 "use $PROXY as proxy"
+
+    result="$(curl --socks5 "$PROXY" -4Ls --connect-timeout 3 -b "$COOKIE_JAR" "$@")"
+    if [ "$?" -eq 0 ]; then
+        [ "$result" ] && echo "$result"
+        exit 0
+    fi
+
+    log 5 "Fetch failed, sleep ${sleep_time}s and retry..."
+    exp_backoff
+done
+
+[ "$RETRY" -gt 0 ] && log 5 "Still could not success after $((RETRY + 1)) trial, abort."
+exit -6
+

@@ -1,0 +1,155 @@
+#!/bin/bash
+
+export SCRIPT_PATH=$(cd "$(dirname "$0")" && pwd)
+export PATH=$PATH:$SCRIPT_PATH
+
+#exec 6>test.log
+. envvars
+
+export RETRY=${RETRY:-$RETRY_GETG}
+
+. func
+
+if [ $# -ne 1 ]; then
+    echo "$0 *hentai.org/g/xx/xx"
+    exit -1
+fi
+
+T0=$(date +%s)
+
+ID=$(echo "$1" | grep -Eio 'org/g/[0-9]+/[0-9a-f]+' | cut -d/ -f3)
+HASH=$(echo "$1" | grep -Eio 'org/g/[0-9]+/[0-9a-f]+' | cut -d/ -f4)
+
+URL=https://exhentai.org/g/$ID/$HASH
+
+log 6 "Get gallery $ID info"
+PAGE6=$(seq 0 5 | xargs -n1 -P0 -I:: curl_proxy "$URL"?p=::)
+
+# Count from zero
+#TOTAL_PAGES=$(echo "$PAGE1" | grep -Eo 'Jump to page: \([0-9\-]*' | cut -d- -f2 | head -n1)
+TOTAL_PAGES=$(echo "$PAGE6" | xmlext '//table[@class="ptt"]//td/a/@href' | awk -F= '{if($2>m)m=$2}END{print m + 1}')
+
+NAME_EN=$(echo "$PAGE6" | xmlext '//div[@id="gd2"]/h1[@id="gn"]/text()' | head -n1 | normalize_name)
+NAME_JP=$(echo "$PAGE6" | xmlext '//div[@id="gd2"]/h1[@id="gj"]/text()' | head -n1 | normalize_name)
+[ ! "$NAME_JP" ] && NAME_JP="$NAME_EN"
+TAGS=$(echo "$PAGE6" | xmlext '//div[@id="taglist"]//div[@class="gt"]/@id' | cut -c4- | sort -u)
+CATEGORY=$(echo "$PAGE6" | xmlext '//div[@id="gdc"]//text()' | head -n1)
+PUBLISH_TIME=$(echo "$PAGE6" | xmlext '//div[@id="gdd"]//tr[1]/td[@class="gdt2"]/text()' | head -n1)
+TOTAL_IMAGES=$(echo "$PAGE6" | xmlext '//div[@id="gdd"]//tr[6]/td[@class="gdt2"]/text()' | head -n1 | cut -d' ' -f1)
+
+log 4 "Name: $NAME_JP"
+log 4 "Category: $CATEGORY"
+log 4 "ID: $ID"
+log 4 "URL: $URL"
+log 4 "Total images: $TOTAL_IMAGES"
+log 4 "Total pages: $TOTAL_PAGES"
+
+DIRNAME="$NAME_JP"
+
+mkdir -p "$CATEGORY/$DIRNAME"
+pushd "$CATEGORY/$DIRNAME" >/dev/null
+
+for((i=2;i<100;i++)); do 
+
+    if [ ! -f "info.txt" ]; then
+        # Gr8, We can settle here.
+        log 4 "Download to: $CATEGORY/$DIRNAME"
+        break
+    fi
+
+    log 7 "$DIRNAME exists, check info.txt"
+    OLD_ID="$(grep '^ID:' info.txt | cut -d' ' -f2)"
+    OLD_PUBLISH_TIME="$(grep '^Publish time:' info.txt | cut -d' ' -f3-)"
+
+    # Check if we are downloading the same gallery.
+    if [ "$OLD_ID" -ne "$ID" ]; then
+        DIRNAME="$NAME_JP ($i)"
+        log 6 "ID mismatch: $OLD_ID vs $ID, rename to $DIRNAME"
+        popd >/dev/null
+        mkdir -p "$CATEGORY/$DIRNAME"
+        pushd "$CATEGORY/$DIRNAME" >/dev/null
+        continue
+    fi
+
+    # Yes, now check if it is updated.
+    if [ "$OLD_PUBLISH_TIME" != "$PUBLISH_TIME" ]; then
+        echo "$OLD_PUBLISH_TIME"
+        echo "$PUBLISH_TIME"
+        log 4 "The gallery is updated, redownload."
+        popd >/dev/null
+        mv "$CATEGORY/$DIRNAME" "$CATEGORY/$DIRNAME.old"
+        mkdir -p "$CATEGORY/$DIRNAME"
+        pushd "$CATEGORY/$DIRNAME" >/dev/null
+        continue
+    fi
+
+    # Hooray! We already downloaded the whole gallery!
+    log 4 "The gallery is up to date, abort."
+    exit 0
+
+done
+
+# Log info
+echo "Name: $NAME_JP" >> info.txt
+echo "Category: $CATEGORY" >> info.txt
+echo "ID: $ID" >> info.txt
+echo "URL: $URL" >> info.txt
+echo "Total images: $TOTAL_IMAGES" >> info.txt
+echo "Publish time: $PUBLISH_TIME" >> info.txt
+echo "Download time: $(date "+%F %R")" >> info.txt
+echo "Tags:" >> info.txt
+echo "$TAGS" >> info.txt
+
+
+PARALLEL=$(awk 'END{print int(NR*2/3)}' $USABLE_PROXY_LIST)
+log 4 "Max parallel level: $PARALLEL."
+
+if [ "$TOTAL_PAGES" -le 6 ]; then
+    # Directly get image list from PAGE1~6
+    IMAGE_LIST=$(echo "$PAGE6" | \
+        grep -Eio "/s/[0-9a-f]+/$ID-[0-9]+" | \
+        sed 's@^@https://exhentai.org@' | \
+        sort -u -t- -nk2
+    )
+else
+    IMAGE_LIST=$(seq 0 $((TOTAL_PAGES - 1)) | \
+        xargs -n1 -P$PARALLEL -I:: curl_proxy "$URL"?p=:: | \
+        grep -Eio "/s/[0-9a-f]+/$ID-[0-9]+" | \
+        sed 's@^@https://exhentai.org@' | \
+        sort -u -t- -nk2
+    )
+fi
+
+if [ ! "$IMAGE_LIST" ]; then
+    log 2 "Could not get image list, why??"
+    popd >/dev/null
+    rm -r "$CATEGORY/$DIRNAME"
+    exit -1
+fi
+
+ACTUAL_IMAGES=$(echo "$IMAGE_LIST" | wc -l)
+
+echo "$IMAGE_LIST" > $SCRIPT_PATH/image2.lst
+
+if [ "$ACTUAL_IMAGES" -ne "$TOTAL_IMAGES" ]; then
+    log 2 "Missing $((TOTAL_IMAGES - ACTUAL_IMAGES)) images, abort."
+    popd >/dev/null
+    rm -r "$CATEGORY/$DIRNAME"
+    exit -1
+fi
+
+T1=$(date +%s)
+
+log 4 "Downloading $TOTAL_IMAGES images"
+
+echo "$IMAGE_LIST" | xargs -n1 -P$PARALLEL gets
+
+popd >/dev/null
+
+T2=$(date +%s)
+
+tc() { awk 'BEGIN{printf "%.2f\n", 1.*ARGV[3]/(ARGV[1]-ARGV[2]); exit}' "$@"; }
+
+log 4     "List time: $((T1-T0)) s($(tc $T1 $T0 $TOTAL_PAGES) page/s)"
+log 4 "Download time: $((T2-T1)) s($(tc $T2 $T1 $TOTAL_IMAGES) image/s)"
+log 4 "Total time: $((T2-T0)) s"

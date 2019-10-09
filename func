@@ -1,0 +1,46 @@
+#!/bin/bash
+
+. envvars
+
+if [ ! "$FUNC_SCRIPT" -o ! "$_SCRIPT" ]; then
+    # Store outer script and args if we are not function script (e.g. curl_proxy)
+    # Or the script is interactively used
+    export _SCRIPT=$0
+    export _SCRIPT_ARGS="$@"
+    export LOG_PID=$$
+fi
+
+ls /proc/$$/fd/6 &>/dev/null || exec 6>/dev/null
+log() {
+    level=$1
+    shift
+    echo "<$level>[$(date '+%F %T')] $(basename $_SCRIPT)($$): $@" >&6
+    if [ "$level" -le "$LOG_VERBOSITY" ]; then
+        echo "<$level>[$(date '+%T')] $(basename $_SCRIPT)($$): $@" >&2
+    fi
+}
+
+# Substitute characters 
+normalize_name() {
+    sed \
+    -e 's@:@：@g' \
+    -e 's@*@＊@g' \
+    -e 's@?@？@g' \
+    -e 's@"@＂@g' \
+    -e 's@<@＜@g' \
+    -e 's@>@＞@g' \
+    -e 's@|@｜@g' \
+    -e 's@/@／@g' \
+    -e 's@\\@＼@g'
+
+}
+
+xmlext() {
+    python2 -c'from lxml.etree import *;from sys import *;print "\n".join(HTML(stdin.read()).xpath(argv[1])).encode("utf-8")' "$@"
+}
+
+# Breakable sleep
+bsleep() { BREAK_SLEEP=; for((i=0;i<$1;i++)); do [ "$BREAK_SLEEP" ] && break; command sleep 1; done }
+_break_sleep() { BREAK_SLEEP=1; }
+trap _break_sleep USR1
+trap 'echo ""; exit 0' INT

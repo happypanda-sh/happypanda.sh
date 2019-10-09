@@ -1,0 +1,24 @@
+#!/bin/bash
+
+export SCRIPT_PATH=$(cd "$(dirname "$0")" && pwd)
+export PATH=$PATH:$SCRIPT_PATH
+
+. envvars
+. func
+
+if [ "$#" -ne 1 ]; then
+    echo "This script will check if proxy is available for scraping,"
+    echo "Usage: $0 <proxy>"
+    echo "return: <proxy> <point>"
+    exit -1
+fi
+
+N=$(curl --socks5 "$1" -4Ls -m 3 -b "$COOKIE_JAR" https://e-hentai.org/home.php \
+    | awk -F'[<>]' '/You are currently at/{print $5}END{print 99999}' | head -n1)
+
+if [ "$N" -lt "4000" ]; then
+    echo $1 $N
+else
+    log 3 "$1 unusable: $N"
+fi
+

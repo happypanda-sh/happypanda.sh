@@ -1,0 +1,49 @@
+#!/bin/bash
+
+export SCRIPT_PATH=$(cd "$(dirname "$0")" && pwd)
+export PATH=$PATH:$SCRIPT_PATH
+
+#exec 6>test.log
+. envvars
+
+export RETRY=${RETRY:-$RETRY_GETS}
+
+. func
+
+if [ $# -ne 1 ]; then
+    echo "$0 *hentai.org/s/xx/xx-nn"
+    exit -1
+fi
+
+INFIX=$(echo "$1" | grep -Eio "/s/[0-9a-f]+/[0-9]+-[0-9]+")
+N=$(echo "$INFIX" | cut -d- -f2)
+
+get_image_url() {
+    URL=https://exhentai.org$INFIX$1
+
+    log 6 "Download $INFIX$1"
+    IMAGE_URL=$(curl_proxy "$URL" | xmlext '//img[@id="img"]/@src')
+    FILENAME=$(basename "$IMAGE_URL")
+    if [ ! "$FILENAME" ]; then
+        log 5 "cannot get image url, retry"
+        "$0" "$@"
+        return $?
+    fi
+
+    # Extend max download time if it's a gif
+    if echo "$FILENAME" | grep -q '\.gif$'; then
+        CURL_M=15
+    else
+        CURL_M=5
+    fi
+}
+
+get_image_url
+
+log 6 "Download image from H@H"
+RETRY=0 curl_proxy -m $CURL_M "$IMAGE_URL" -o "$N-$FILENAME" && exit 0
+
+get_image_url '?nl=123-999999'
+
+log 6 "Download image from source"
+curl_proxy -m $((CURL_M*2)) "$IMAGE_URL" -o "$N-$FILENAME"
