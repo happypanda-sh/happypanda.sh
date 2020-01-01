@@ -18,8 +18,21 @@ echo -e "\e[1;32mEhentai.sh daemon waiting for job.\e[0m"
 
 while true; do
     cat "$JOB_QUEUE" | while read i; do
-        echo -e "\e[1;32mDownload $i\e[0m"
-        getg $i
+        case "$i" in 
+        */g/*)
+            echo -e "\e[1;32mDownload $i\e[0m"
+            getg $i
+            ;;
+        *f_search=*)
+            echo -e "\e[1;32mSearch $i and download\e[0m"
+            getsearch $i
+            ;;
+        *)
+            echo -e "\e[1;31mUnknown command type.\e[0m"
+            continue
+            ;;
+        esac
+
         if [ $? -ne 0 ]; then
             echo -e "\e[1;31m$i download failed.\e[0m"
             echo $i >> $SCRIPT_PATH/failed.lst

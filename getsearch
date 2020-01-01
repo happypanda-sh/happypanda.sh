@@ -1,0 +1,60 @@
+#!/bin/bash
+
+#https://exhentai.org/?f_cats=128&f_search=%5B%E3%81%9F%E3%81%8B%E3%82%84Ki%5D+chinese&advsearch=1&f_sname=on&f_stags=on&f_sh=on&f_spf=&f_spt=
+
+export SCRIPT_PATH=$(cd "$(dirname "$0")" && pwd)
+export PATH=$PATH:$SCRIPT_PATH
+
+#exec 6>test.log
+. envvars
+
+export RETRY=${RETRY:-$RETRY_GETG}
+. func
+
+if [ $# -lt 1 ]; then
+    echo "$0 *f_search=...* [start=1 [count=10]]"
+    exit -1
+fi
+
+URL=$1
+if ! echo "$URL" | grep -q 'f_search='; then
+    log 2 "Invalid URL"
+    exit -1
+fi
+
+START=${2:-1}
+COUNT=${3:-10}
+
+FIRST=$((START-1))
+LAST=$((FIRST+COUNT-1))
+
+PAGES=$(seq $FIRST $LAST | xargs -n1 -P0 -I:: curl_proxy "$URL&page=::")
+echo "$PAGES" >> tmp.txt
+
+TERM=$(echo "$PAGES" | xmlext '//input[@id="f_search"]/@value' | head -n1)
+#TOTAL_RESULTS=$(echo "$PAGES" | grep 'Showing [0-9]+ results' | head -n1)
+TOTAL_RESULTS=$(echo "$PAGES" | xmlext '//p[@class="ip"]/text()' | head -n1 | cut -d' ' -f2)
+TOTAL_PAGES=$(echo "$PAGES" | xmlext '//table[@class="ptt"]//td/a/@href' | grep -Eo 'page=[0-9]+' | cut -d= -f2 | sort -n | tail -n1)
+
+PAGES_LIST=$(echo "$PAGES" | grep -Eo '/g/[0-9]+/[0-9a-f]+' | sort -t/ -rnk3)
+
+if [ ! "$TOTAL_RESULTS" ]; then
+    log 2 "No hits found"
+    exit -1
+fi
+
+log 4 "Search: $TERM"
+log 4 "Total results: $TOTAL_RESULTS"
+log 4 "Download gallery: $(echo "$PAGES_LIST" | wc -l)"
+log 4 "Total pages: $(($TOTAL_PAGES+1))"
+log 4 "Page range: [$(($FIRST+1)),$(($LAST+1))]"
+
+echo "$PAGES_LIST" | sed 's@^@https://exhentai.org@' | while read i; do 
+    echo -e "\e[1;32mDownload $i\e[0m"
+    getg $i
+
+    if [ $? -ne 0 ]; then
+        echo -e "\e[1;31m$i download failed.\e[0m"
+        echo $i >> $SCRIPT_PATH/failed.lst
+    fi
+done

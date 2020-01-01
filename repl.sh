@@ -16,7 +16,8 @@ while true; do
     if ! read -e -p ">>> " cmd args; then
         #EOF
         echo ""
-        exec "$0 ""$@"
+        exit 0
+        #exec "$0" "$@"
     fi
 
     if [ "$cmd" == "" ]; then
@@ -25,6 +26,10 @@ while true; do
 
     case "$cmd" in 
         */g/*)
+            echo "$cmd" >&3
+            continue
+            ;;
+        *f_search=*)
             echo "$cmd" >&3
             continue
             ;;
@@ -43,6 +48,7 @@ while true; do
             ;;
         \?|help|*)
             echo "<url>   Add url to job queue"
+            echo "<search_url> [start=1] [maxcount=10] Add search url to job queue"
             echo "failed  Show failed jobs"
             echo "refresh Refresh proxy list"
             echo "help    Show this help"

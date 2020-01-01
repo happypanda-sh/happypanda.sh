@@ -36,7 +36,7 @@ normalize_name() {
 }
 
 xmlext() {
-    python2 -c'from lxml.etree import *;from sys import *;print "\n".join(HTML(stdin.read()).xpath(argv[1])).encode("utf-8")' "$@"
+    python2 -c'from lxml.etree import *;from sys import *;print "\n".join(HTML(stdin.read().decode("utf-8")).xpath(argv[1])).encode("utf-8")' "$@"
 }
 
 # Breakable sleep
