@@ -37,6 +37,12 @@ CATEGORY=$(echo "$PAGE6" | xmlext '//div[@id="gdc"]//text()' | head -n1)
 PUBLISH_TIME=$(echo "$PAGE6" | xmlext '//div[@id="gdd"]//tr[1]/td[@class="gdt2"]/text()' | head -n1)
 TOTAL_IMAGES=$(echo "$PAGE6" | xmlext '//div[@id="gdd"]//tr[6]/td[@class="gdt2"]/text()' | head -n1 | cut -d' ' -f1)
 
+# Sanity checks
+if [ ! "$NAME_JP" -o ! "$CATEGORY" ]; then
+    log 2 "Could not get name and category, why??"
+    exit -1
+fi
+
 log 4 "Name: $NAME_JP"
 log 4 "Category: $CATEGORY"
 log 4 "ID: $ID"

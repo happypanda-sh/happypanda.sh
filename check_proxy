@@ -13,6 +13,11 @@ if [ "$#" -ne 1 ]; then
     exit -1
 fi
 
+if ! curl --socks5 "$1" -4Ls -m 3 -b "$COOKIE_JAR" https://exhentai.org &>/dev/null ; then
+    log 3 "$1 cannot connect"
+    exit 0
+fi
+
 N=$(curl --socks5 "$1" -4Ls -m 3 -b "$COOKIE_JAR" https://e-hentai.org/home.php \
     | awk -F'[<>]' '/You are currently at/{print $5}END{print 99999}' | head -n1)
 

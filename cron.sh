@@ -16,5 +16,9 @@ while true; do
     log 4 "Available proxy: $(cat "$USABLE_PROXY_LIST" | wc -l)"
     log 4 "Average point: $(cat "$USABLE_PROXY_LIST" | awk '{s+=$2}END{print int(s/NR)}')"
 
+    if [ "$1" == "oneshot" ]; then
+        exit 0
+    fi
+
     bsleep 300
 done

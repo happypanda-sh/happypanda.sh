@@ -1,5 +1,7 @@
 eh.txt
 *proxy.lst
+failed.lst
 *.log
 *~
 *.html
+download/

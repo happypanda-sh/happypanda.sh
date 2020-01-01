@@ -32,9 +32,9 @@ get_image_url() {
 
     # Extend max download time if it's a gif
     if echo "$FILENAME" | grep -q '\.gif$'; then
-        CURL_M=15
+        CURL_M=20
     else
-        CURL_M=5
+        CURL_M=10
     fi
 }
 
@@ -42,8 +42,10 @@ get_image_url
 
 log 6 "Download image from H@H"
 RETRY=0 curl_proxy -m $CURL_M "$IMAGE_URL" -o "$N-$FILENAME" && exit 0
+#curl -m $CURL_M -4Ls --connect-timeout 3 -b "$COOKIE_JAR" "$IMAGE_URL" -o "$N-$FILENAME" && exit 0
 
 get_image_url '?nl=123-999999'
 
 log 6 "Download image from source"
 curl_proxy -m $((CURL_M*2)) "$IMAGE_URL" -o "$N-$FILENAME"
+#curl -m $CURL_M -m $((CURL_M*2)) -4Ls --connect-timeout 3 -b "$COOKIE_JAR" "$IMAGE_URL" -o "$N-$FILENAME"
